@@ -3,8 +3,15 @@
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
 # Recommended: add any editor/OS/tool-specific ignore rules from the Global/ templates as needed.
+
 # See: https://github.com/github/gitignore/tree/main/Global
-#
+
+Backend/appsettings.json
+
+Backend/bin/
+Backend/obj/
+Backend/.vs/
+
 .utmp/
 /[Ll]ibrary/
 /[Tt]emp/
