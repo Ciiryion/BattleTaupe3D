@@ -410,7 +410,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &99269165
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3895,8 +3895,6 @@ MonoBehaviour:
   registerLocation: {fileID: 540036976}
   loginEmail: {fileID: 1039735300}
   loginPassword: {fileID: 207686617}
-  dimension: {fileID: 0}
-  maxTime: {fileID: 0}
 --- !u!4 &890485444
 Transform:
   m_ObjectHideFlags: 0
