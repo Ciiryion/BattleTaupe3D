@@ -21,9 +21,6 @@ namespace BattleTaupe3D
         public static Task ClearAll() =>
             _event.DeleteManyAsync(FilterDefinition<BsonDocument>.Empty);
 
-        // ─── Runtime : écriture ───────────────────────────────────────────────
-
-        /// <summary>Enregistre un événement pendant une partie en cours.</summary>
         public static async Task RecordEvent(int partieId, int joueurId, string typeAction, BsonDocument details)
         {
             var doc = new BsonDocument
@@ -37,7 +34,6 @@ namespace BattleTaupe3D
             await _event.InsertOneAsync(doc);
         }
 
-        /// <summary>Raccourci pour enregistrer un tir.</summary>
         public static Task RecordTir(int partieId, int joueurId,
             int px, int py, int pz,
             float dx, float dy, float dz,
@@ -53,7 +49,6 @@ namespace BattleTaupe3D
             return RecordEvent(partieId, joueurId, "TIR", details);
         }
 
-        /// <summary>Raccourci pour enregistrer un déplacement.</summary>
         public static Task RecordDeplacement(int partieId, int joueurId,
             int px, int py, int pz, float rotationY)
         {
@@ -65,9 +60,6 @@ namespace BattleTaupe3D
             return RecordEvent(partieId, joueurId, "DEPLACEMENT", details);
         }
 
-        // ─── Runtime : lecture ────────────────────────────────────────────────
-
-        /// <summary>Tous les événements d'une partie, triés chronologiquement.</summary>
         public static async Task<List<BsonDocument>> GetEventsByPartie(int partieId)
         {
             var filter = Builders<BsonDocument>.Filter.Eq("partie_id", partieId);
@@ -75,7 +67,6 @@ namespace BattleTaupe3D
             return await _event.Find(filter).Sort(sort).ToListAsync();
         }
 
-        /// <summary>Événements d'un joueur, optionnellement filtrés par partie.</summary>
         public static async Task<List<BsonDocument>> GetEventsByJoueur(int joueurId, int? partieId = null)
         {
             var filter = Builders<BsonDocument>.Filter.Eq("joueur_id", joueurId);
@@ -85,7 +76,6 @@ namespace BattleTaupe3D
             return await _event.Find(filter).Sort(sort).ToListAsync();
         }
 
-        /// <summary>Nombre de tirs d'un joueur dans une partie.</summary>
         public static Task<long> CountTirs(int partieId, int joueurId)
         {
             var filter = Builders<BsonDocument>.Filter.And(
@@ -96,10 +86,6 @@ namespace BattleTaupe3D
             return _event.CountDocumentsAsync(filter);
         }
 
-        /// <summary>
-        /// Statistiques de tir agrégées par joueur pour une partie :
-        /// nombre de tirs, total de dégâts, nombre de touches.
-        /// </summary>
         public static async Task<List<BsonDocument>> GetTirStatsByPartie(int partieId)
         {
             var pipeline = new[]
@@ -126,7 +112,33 @@ namespace BattleTaupe3D
             return await _event.Aggregate<BsonDocument>(pipeline).ToListAsync();
         }
 
-        /// <summary>Supprime tous les événements d'une partie (ex : reset / annulation).</summary>
+        public static async Task<List<BsonDocument>> GetDeplacementsJoueur(int partieId, int joueurId)
+        {
+            var filter = Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.Eq("partie_id", partieId),
+                Builders<BsonDocument>.Filter.Eq("joueur_id", joueurId),
+                Builders<BsonDocument>.Filter.Eq("type_action", "DEPLACEMENT")
+            );
+            var sort = Builders<BsonDocument>.Sort.Ascending("timestamp");
+            return await _event.Find(filter).Sort(sort).ToListAsync();
+        }
+
+        public static async Task<List<BsonDocument>> GetClassementDegats()
+        {
+            var pipeline = new[]
+            {
+                new BsonDocument("$match", new BsonDocument("type_action", "TIR")),
+                new BsonDocument("$group", new BsonDocument
+                {
+                    { "_id", "$joueur_id" },
+                    { "degats_total", new BsonDocument("$sum", "$details.degats") },
+                    { "nb_tirs",      new BsonDocument("$sum", 1) }
+                }),
+                new BsonDocument("$sort", new BsonDocument("degats_total", -1))
+            };
+            return await _event.Aggregate<BsonDocument>(pipeline).ToListAsync();
+        }
+
         public static async Task DeleteEventsByPartie(int partieId)
         {
             var filter = Builders<BsonDocument>.Filter.Eq("partie_id", partieId);

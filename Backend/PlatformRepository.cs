@@ -8,8 +8,6 @@ namespace BattleTaupe3D
     {
         private readonly NpgsqlConnection _connection = connection;
 
-        // ─── Joueur ───────────────────────────────────────────────────────────
-
         public async Task<PlayerEntity?> GetJoueurById(int id)
         {
             await using var cmd = _connection.CreateCommand();
@@ -68,8 +66,6 @@ namespace BattleTaupe3D
             Password = r.GetString(6),
         };
 
-        // ─── Jeu ─────────────────────────────────────────────────────────────
-
         public async Task<GameEntity?> GetJeuById(int id)
         {
             await using var cmd = _connection.CreateCommand();
@@ -92,8 +88,6 @@ namespace BattleTaupe3D
                 result.Add(new GameEntity { Id = reader.GetInt32(0), Name = reader.GetString(1) });
             return result;
         }
-
-        // ─── Partie ───────────────────────────────────────────────────────────
 
         public async Task CreatePartie(PartieEntity partie)
         {
@@ -169,8 +163,6 @@ namespace BattleTaupe3D
             GameTime = r.GetInt32(5),
             GameId = r.GetInt32(6),
         };
-
-        // ─── Jouer ────────────────────────────────────────────────────────────
 
         public async Task AddJoueurToPartie(PlayEntity play)
         {
@@ -258,7 +250,161 @@ namespace BattleTaupe3D
             return result;
         }
 
-        // ─── Posseder ─────────────────────────────────────────────────────────
+        public async Task PausePartie(int partieId, int tempsEcoule)
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                UPDATE public."partie"
+                SET temps_ecoule = @tempsEcoule
+                WHERE id = @id
+                """;
+            cmd.Parameters.AddWithValue("tempsEcoule", NpgsqlDbType.Integer, tempsEcoule);
+            cmd.Parameters.AddWithValue("id", NpgsqlDbType.Integer, partieId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteJoueur(int id)
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """DELETE FROM public."joueur" WHERE id = @id""";
+            cmd.Parameters.AddWithValue("id", NpgsqlDbType.Integer, id);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<object>> GetJoueursParPartie(int partieId)
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT j.nom, EXTRACT(YEAR FROM AGE(j.naissance))::int AS age
+                FROM public."joueur" j
+                JOIN public."jouer" jo ON jo.id_joueur = j.id
+                WHERE jo.id_partie = @partieId
+                ORDER BY j.nom
+                """;
+            cmd.Parameters.AddWithValue("partieId", NpgsqlDbType.Integer, partieId);
+
+            var result = new List<object>();
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                result.Add(new { nom = reader.GetString(0), age = reader.GetInt32(1) });
+            return result;
+        }
+
+        public async Task<object?> GetJoueurPlusParties(int jeuId)
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT j.nom,
+                       EXTRACT(YEAR FROM AGE(j.naissance))::int AS age,
+                       j.adresse,
+                       COUNT(jo.id_partie) AS nb_parties
+                FROM public."joueur" j
+                JOIN public."jouer" jo ON jo.id_joueur = j.id
+                JOIN public."partie" p  ON p.id = jo.id_partie
+                WHERE p.id_jeu = @jeuId
+                GROUP BY j.id, j.nom, j.naissance, j.adresse
+                ORDER BY nb_parties DESC
+                LIMIT 1
+                """;
+            cmd.Parameters.AddWithValue("jeuId", NpgsqlDbType.Integer, jeuId);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (!await reader.ReadAsync()) return null;
+            return new
+            {
+                nom = reader.GetString(0),
+                age = reader.GetInt32(1),
+                adresse = reader.GetString(2),
+                nb_parties = reader.GetInt64(3)
+            };
+        }
+
+        public async Task<double> GetAgeMoyenJoueurs(int jeuId)
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT AVG(EXTRACT(YEAR FROM AGE(j.naissance)))
+                FROM public."joueur" j
+                JOIN public."jouer" jo ON jo.id_joueur = j.id
+                JOIN public."partie" p  ON p.id = jo.id_partie
+                WHERE p.id_jeu = @jeuId
+                """;
+            cmd.Parameters.AddWithValue("jeuId", NpgsqlDbType.Integer, jeuId);
+            var result = await cmd.ExecuteScalarAsync();
+            return result is DBNull or null ? 0 : Convert.ToDouble(result);
+        }
+
+        public async Task<object?> GetMeilleurVainqueur()
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT j.nom, COUNT(*) AS nb_victoires
+                FROM public."joueur" j
+                JOIN public."jouer" jo ON jo.id_joueur = j.id
+                WHERE jo.vainqueur = true
+                GROUP BY j.id, j.nom
+                ORDER BY nb_victoires DESC
+                LIMIT 1
+                """;
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (!await reader.ReadAsync()) return null;
+            return new { nom = reader.GetString(0), nb_victoires = reader.GetInt64(1) };
+        }
+
+        public async Task<List<object>> GetJeuxClassement()
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT jeu.nom, COUNT(p.id) AS nb_parties
+                FROM public."jeu" jeu
+                LEFT JOIN public."partie" p ON p.id_jeu = jeu.id
+                GROUP BY jeu.id, jeu.nom
+                ORDER BY nb_parties DESC
+                """;
+            var result = new List<object>();
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                result.Add(new { nom = reader.GetString(0), nb_parties = reader.GetInt64(1) });
+            return result;
+        }
+
+        public async Task<int> GetNbJoueursExclusifs(int jeuId)
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT COUNT(DISTINCT jo.id_joueur)
+                FROM public."jouer" jo
+                JOIN public."partie" p ON p.id = jo.id_partie
+                WHERE p.id_jeu = @jeuId
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM public."jouer" jo2
+                      JOIN public."partie" p2 ON p2.id = jo2.id_partie
+                      WHERE jo2.id_joueur = jo.id_joueur
+                        AND p2.id_jeu != @jeuId
+                  )
+                """;
+            cmd.Parameters.AddWithValue("jeuId", NpgsqlDbType.Integer, jeuId);
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task<List<object>> GetEvolutionParSemaine(int jeuId)
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT DATE_TRUNC('week', date_debut) AS semaine, COUNT(*) AS nb_parties
+                FROM public."partie"
+                WHERE id_jeu = @jeuId
+                GROUP BY semaine
+                ORDER BY semaine
+                """;
+            cmd.Parameters.AddWithValue("jeuId", NpgsqlDbType.Integer, jeuId);
+            var result = new List<object>();
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                result.Add(new { semaine = reader.GetDateTime(0), nb_parties = reader.GetInt64(1) });
+            return result;
+        }
 
         public async Task AddPosseder(int joueurId, int jeuId)
         {

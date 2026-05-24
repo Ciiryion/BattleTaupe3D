@@ -13,7 +13,8 @@ public class ApiService : MonoBehaviour
     public int CurrentPlayerId { get; private set; }
     public string CurrentPlayerName { get; private set; } = "";
     public int CurrentPartieId { get; private set; }
-    public int DefaultJeuId { get; private set; } = 1;
+    public int DefaultJeuId { get; private set; } = 0;
+    private bool _jeuIdFetched = false;
 
     private void Awake()
     {
@@ -110,7 +111,10 @@ public class ApiService : MonoBehaviour
             var json = await Get("/api/games");
             var list = JsonUtility.FromJson<GameInfoList>("{\"items\":" + json + "}");
             if (list.items is { Length: > 0 })
+            {
                 DefaultJeuId = list.items[0].id;
+                _jeuIdFetched = true;
+            }
         }
         catch (Exception e) { Debug.LogWarning("[ApiService] Impossible de récupérer le jeu : " + e.Message); }
     }
@@ -135,6 +139,10 @@ public class ApiService : MonoBehaviour
 
     public async Task CreatePartie(int dimension = 5, int maxTime = 60)
     {
+        if (!_jeuIdFetched)
+            await FetchDefaultJeuId();
+        if (DefaultJeuId == 0)
+            throw new Exception("Aucun jeu disponible sur le serveur.");
         var json = await Post("/api/parties", JsonUtility.ToJson(new CreatePartieReq
         { jeuId = DefaultJeuId, dimension = dimension, maxTime = maxTime, joueurId = CurrentPlayerId }));
         CurrentPartieId = JsonUtility.FromJson<IdResponse>(json).id;
@@ -183,6 +191,30 @@ public class ApiService : MonoBehaviour
             pz = pos.z,
             rotationY = rotationY,
         }));
+    public async Task<DegatsEntry[]> GetClassementDegats()
+    {
+        var json = await Get("/api/events/classement-degats");
+        return JsonUtility.FromJson<DegatsEntryList>("{\"items\":" + json + "}").items;
+    }
+
+    public async Task<MeilleurVainqueurResp> GetMeilleurVainqueur()
+    {
+        var json = await Get("/api/stats/meilleur-vainqueur");
+        return JsonUtility.FromJson<MeilleurVainqueurResp>(json);
+    }
+
+    public async Task<float> GetAgeMoyen()
+    {
+        if (DefaultJeuId == 0) await FetchDefaultJeuId();
+        var json = await Get($"/api/stats/age-moyen/{DefaultJeuId}");
+        return JsonUtility.FromJson<AgeMoyenResp>(json).ageMoyen;
+    }
+
+    public async Task<JeuClassement[]> GetJeuxClassement()
+    {
+        var json = await Get("/api/stats/jeux-classement");
+        return JsonUtility.FromJson<JeuClassementList>("{\"items\":" + json + "}").items;
+    }
 }
 
 [Serializable] class RegisterReq { public string name = "", email = "", password = "", birth = "", location = "", createdAt = ""; }
@@ -199,3 +231,9 @@ public class ApiService : MonoBehaviour
 [Serializable] class GameInfoList { public GameInfo[] items = Array.Empty<GameInfo>(); }
 [Serializable] public class PlayResult { public int playerId, partieId, score; public bool isAdmin, isWinner; }
 [Serializable] class PlayResultList { public PlayResult[] items = Array.Empty<PlayResult>(); }
+[Serializable] public class DegatsEntry { public int joueurId; public int degats_total; public int nb_tirs; }
+[Serializable] class DegatsEntryList { public DegatsEntry[] items = Array.Empty<DegatsEntry>(); }
+[Serializable] public class MeilleurVainqueurResp { public string nom = ""; public int nb_victoires; }
+[Serializable] public class AgeMoyenResp { public float ageMoyen; }
+[Serializable] public class JeuClassement { public string nom = ""; public int nb_parties; }
+[Serializable] class JeuClassementList { public JeuClassement[] items = Array.Empty<JeuClassement>(); }
