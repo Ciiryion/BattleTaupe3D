@@ -46,7 +46,7 @@ public class GameManager : MonoBehaviour
 
     [Header("Stats")]
     [SerializeField] private GameObject statsPanel;
-    [SerializeField] private TMP_Text   statsText;
+    [SerializeField] private TMP_Text statsText;
 
     private float _arenaHalf;
     private int _score;
@@ -59,7 +59,9 @@ public class GameManager : MonoBehaviour
         ShowMainMenu();
         if (menuCamera != null) menuCamera.gameObject.SetActive(true);
         if (gamePanel != null) gamePanel.SetActive(false);
-        if (playerObject != null) playerObject.SetActive(false);        if (statsPanel   != null) statsPanel.SetActive(false);        Cursor.lockState = CursorLockMode.None;
+        if (playerObject != null) playerObject.SetActive(false);
+        if (statsPanel != null) statsPanel.SetActive(false);
+        Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
 
@@ -70,12 +72,12 @@ public class GameManager : MonoBehaviour
 
     private void SetMenuPanel(GameObject target)
     {
-        if (mainMenuPanel  != null) mainMenuPanel.SetActive(false);
-        if (registerPanel  != null) registerPanel.SetActive(false);
-        if (loginPanel     != null) loginPanel.SetActive(false);
+        if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
+        if (registerPanel != null) registerPanel.SetActive(false);
+        if (loginPanel != null) loginPanel.SetActive(false);
         if (startGamePanel != null) startGamePanel.SetActive(false);
-        if (statsPanel     != null) statsPanel.SetActive(false);
-        if (target         != null) target.SetActive(true);
+        if (statsPanel != null) statsPanel.SetActive(false);
+        if (target != null) target.SetActive(true);
         menuCamera.gameObject.SetActive(target != null);
     }
 
